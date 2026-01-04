@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "ucqcf_core",
+    "ucqcf_ciem",
+    "ucqcf_mock_hw",
+    "ucqcf_orchestrator",
+    "examples/defense",
+]
+resolver = "2"

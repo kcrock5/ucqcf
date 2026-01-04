@@ -1,0 +1,8 @@
+[package]
+name = "ucqcf_ciem"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ucqcf_core = { path = "../ucqcf_core" }
+ucqcf_mock_hw = { path = "../ucqcf_mock_hw" }
