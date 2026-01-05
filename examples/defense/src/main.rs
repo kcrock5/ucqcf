@@ -5,7 +5,7 @@ use ucqcf_core::capability::CryptographicCapability;
 use ucqcf_core::profile::{Domain, SecurityProfile};
 // Import the mock hardware components AND THEIR TRAITS.
 use ucqcf_mock_hw::clock::{ClockSource, MockAtomicClock, MockQuantumClock};
-use ucqcf_mock_hw::rng::{RngSource, MockQRNG, MockTRNG};
+use ucqcf_mock_hw::rng::{MockQRNG, MockTRNG, RngSource};
 
 fn main() {
     println!("--- UCQCF Defense Profile Example ---");

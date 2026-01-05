@@ -17,7 +17,9 @@ impl RngSource for MockTRNG {
         // this would interface with a hardware device.
         rand::thread_rng().fill_bytes(dest);
     }
-    fn name(&self) -> &'static str { "MockTRNG" }
+    fn name(&self) -> &'static str {
+        "MockTRNG"
+    }
 }
 
 /// A mock QRNG (Quantum Random Number Generator).
@@ -29,5 +31,7 @@ impl RngSource for MockQRNG {
         // also use a CSPRNG, but its name indicates its "quantum" nature.
         rand::thread_rng().fill_bytes(dest);
     }
-    fn name(&self) -> &'static str { "MockQRNG" }
+    fn name(&self) -> &'static str {
+        "MockQRNG"
+    }
 }

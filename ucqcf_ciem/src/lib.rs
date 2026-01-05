@@ -7,16 +7,16 @@ pub mod fsm_generated;
 pub mod entropy;
 pub mod time;
 
-use std::cell::RefCell;
 use crate::entropy::EntropySource;
+use std::cell::RefCell;
 // Import the new FSM and its error type.
 use crate::fsm_generated::{CiemFsm, FsmError};
 use crate::time::SecureClock;
+use ucqcf_core::CryptoError;
 use ucqcf_core::capability::CryptographicCapability;
 use ucqcf_core::profile::SecurityProfile;
-use ucqcf_core::CryptoError;
 use ucqcf_mock_hw::clock::{ClockSource, MockClassicalOscillator};
-use ucqcf_mock_hw::rng::{RngSource, MockTRNG};
+use ucqcf_mock_hw::rng::{MockTRNG, RngSource};
 
 /// The CIEM struct, now using the generated `CiemFsm`.
 pub struct CIEM<'a> {
