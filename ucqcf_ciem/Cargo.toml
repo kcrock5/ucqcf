@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 ucqcf_core = { path = "../ucqcf_core" }
 ucqcf_mock_hw = { path = "../ucqcf_mock_hw" }
+ring = "0.17.8"
+thiserror = "1.0"

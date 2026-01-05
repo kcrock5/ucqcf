@@ -7,3 +7,4 @@ edition = "2024"
 ucqcf_core = { path = "../../ucqcf_core" }
 ucqcf_ciem = { path = "../../ucqcf_ciem" }
 ucqcf_mock_hw = { path = "../../ucqcf_mock_hw" }
+ring = "0.17.8"

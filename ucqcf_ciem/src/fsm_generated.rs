@@ -30,6 +30,7 @@ pub enum KeyState {
 pub struct CiemFsm {
     state: KeyState,
     usage: u32,
+    #[allow(dead_code)]
     epoch: u64, // epoch is present in the model but not used in this phase's logic.
 }
 
@@ -117,7 +118,7 @@ impl CiemFsm {
         self.state = KeyState::Zeroized;
         self.usage = 0;
     }
-    
+
     /// Gets the current state of the FSM.
     pub fn state(&self) -> KeyState {
         self.state

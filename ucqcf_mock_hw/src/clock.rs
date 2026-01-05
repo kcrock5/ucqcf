@@ -23,7 +23,9 @@ impl ClockSource for MockClassicalOscillator {
         // Simple artificial jitter: add a small random value.
         nanos.wrapping_add(nanos % 100) // Not cryptographically random, just for simulation.
     }
-    fn name(&self) -> &'static str { "MockClassicalOscillator" }
+    fn name(&self) -> &'static str {
+        "MockClassicalOscillator"
+    }
 }
 
 /// A mock atomic clock, representing a high-precision, stable time source.
@@ -36,7 +38,9 @@ impl ClockSource for MockAtomicClock {
             .unwrap()
             .as_nanos() as u64
     }
-    fn name(&self) -> &'static str { "MockAtomicClock" }
+    fn name(&self) -> &'static str {
+        "MockAtomicClock"
+    }
 }
 
 /// A mock quantum clock. In a real system, this might measure quantum phenomena
@@ -52,5 +56,7 @@ impl ClockSource for MockQuantumClock {
             .unwrap()
             .as_nanos() as u64
     }
-    fn name(&self) -> &'static str { "MockQuantumClock" }
+    fn name(&self) -> &'static str {
+        "MockQuantumClock"
+    }
 }

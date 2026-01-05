@@ -7,41 +7,39 @@ pub mod fsm_generated;
 pub mod entropy;
 pub mod time;
 
+use crate::entropy::EntropyAggregator;
 use std::cell::RefCell;
-use crate::entropy::EntropySource;
 // Import the new FSM and its error type.
 use crate::fsm_generated::{CiemFsm, FsmError};
 use crate::time::SecureClock;
+use ucqcf_core::CryptoError;
 use ucqcf_core::capability::CryptographicCapability;
 use ucqcf_core::profile::SecurityProfile;
-use ucqcf_core::CryptoError;
 use ucqcf_mock_hw::clock::{ClockSource, MockClassicalOscillator};
-use ucqcf_mock_hw::rng::{RngSource, MockTRNG};
+use ucqcf_mock_hw::rng::{MockTRNG, RngSource};
 
-/// The CIEM struct, now using the generated `CiemFsm`.
+/// The CIEM struct, now using the `EntropyAggregator`.
 pub struct CIEM<'a> {
     fsm: RefCell<CiemFsm>,
-    entropy: EntropySource<'a>,
+    entropy: EntropyAggregator<'a>,
     clock: RefCell<SecureClock<'a>>,
     tamper: RefCell<bool>,
 }
 
 impl<'a> CIEM<'a> {
     /// Creates a new CIEM instance.
-    /// This now internally drives the FSM to a 'Bound' state, ready for authorization.
     pub fn new(
-        rng_source: Box<dyn RngSource + 'a>,
+        entropy_aggregator: EntropyAggregator<'a>,
         clock_source: Box<dyn ClockSource + 'a>,
     ) -> Self {
         let mut fsm = CiemFsm::new();
         // Drive the FSM to the state required by the example.
-        // This simulates the internal processes of key generation and binding.
         fsm.on_generate().unwrap();
         fsm.on_bind().unwrap();
 
         Self {
             fsm: RefCell::new(fsm),
-            entropy: EntropySource::new(rng_source),
+            entropy: entropy_aggregator,
             clock: RefCell::new(SecureClock::new(clock_source)),
             tamper: RefCell::new(false),
         }
@@ -68,10 +66,16 @@ impl<'a> CIEM<'a> {
     }
 }
 
-/// Default implementation uses default mock hardware.
+use crate::entropy::EntropyError;
+
+use ring::hmac;
+
+/// Default implementation uses a default `EntropyAggregator`.
 impl<'a> Default for CIEM<'a> {
     fn default() -> Self {
-        CIEM::new(Box::new(MockTRNG), Box::new(MockClassicalOscillator))
+        let key = hmac::Key::new(hmac::HMAC_SHA256, &[0; 32]); // Dummy key for default.
+        let aggregator = EntropyAggregator::new(Box::new(MockTRNG), vec![], key);
+        CIEM::new(aggregator, Box::new(MockClassicalOscillator))
     }
 }
 
@@ -80,25 +84,30 @@ pub struct EncryptCapability<'c, 'a> {
     pub(crate) ciem: &'c CIEM<'a>,
 }
 
-/// The capability implementation now uses the generated FSM's `on_use` event.
+/// The capability implementation now uses the `EntropyAggregator`.
 impl<'c, 'a> CryptographicCapability for EncryptCapability<'c, 'a> {
     fn execute(&self, plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
         if *self.ciem.tamper.borrow() {
-            // A tampered CIEM should have a zeroized FSM state.
             return Err(CryptoError::InvalidState);
         }
 
-        // Call the 'on_use' event and map the potential error.
+        // Use the FSM's `on_use` event.
         self.ciem.fsm.borrow_mut().on_use().map_err(|e| match e {
             FsmError::InvalidTransition => CryptoError::FsmInvalidTransition,
             FsmError::UsageExceeded => CryptoError::FsmUsageExceeded,
         })?;
 
         let _epoch = self.ciem.clock.borrow_mut().tick();
-        let entropy_mix = self.ciem.entropy.mix();
+        // Get conditioned entropy from the aggregator.
+        let conditioned_entropy = self.ciem.entropy.get_entropy().map_err(|e| match e {
+            EntropyError::RepetitionCheckFailed => CryptoError::EntropyHealthCheckFailed,
+            EntropyError::ProportionCheckFailed => CryptoError::EntropyHealthCheckFailed,
+            EntropyError::NoSources => CryptoError::InvalidState,
+        })?;
+
         Ok(plaintext
             .iter()
-            .zip(entropy_mix.iter().cycle())
+            .zip(conditioned_entropy.iter().cycle())
             .map(|(p, e)| p ^ e)
             .collect())
     }
