@@ -17,4 +17,6 @@ pub enum CryptoError {
     FsmUsageExceeded,
     /// An entropy source failed a health check.
     EntropyHealthCheckFailed,
+    /// Decryption failed, likely due to an incorrect key or tampered ciphertext.
+    DecryptionFailed,
 }
