@@ -15,4 +15,6 @@ pub enum CryptoError {
     FsmInvalidTransition,
     /// A usage limit for a key or resource was exceeded.
     FsmUsageExceeded,
+    /// An entropy source failed a health check.
+    EntropyHealthCheckFailed,
 }

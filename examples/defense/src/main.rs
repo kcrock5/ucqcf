@@ -12,17 +12,21 @@ fn main() {
 
     // 1. HARDWARE SELECTION (System Integration Step)
     // The system is provisioned with specific, attested hardware.
-    // For the Defense profile, we choose the highest-grade components.
-    let rng_source = Box::new(MockQRNG);
+    let primary_rng = Box::new(MockTRNG);
+    let auxiliary_rng: Vec<Box<dyn RngSource>> = vec![Box::new(MockQRNG)];
     let clock_source = Box::new(MockAtomicClock);
     println!(
-        "SYSTEM: Provisioning CIEM with '{}' and '{}'.\n",
-        rng_source.name(),
+        "SYSTEM: Provisioning CIEM with primary RNG: '{}', auxiliary RNGs: ['{}'], and clock: '{}'.\n",
+        primary_rng.name(),
+        auxiliary_rng.iter().map(|s| s.name()).collect::<Vec<_>>().join(", "),
         clock_source.name()
     );
 
-    // 2. MACHINE VIEW: Instantiate the trust anchor (CIEM) with specific hardware.
-    let ciem = CIEM::new(rng_source, clock_source);
+    // 2. MACHINE VIEW: Instantiate the trust anchor (CIEM) with the entropy aggregator.
+    let key_material = [42; 32]; // Example key, NEVER hardcode in production.
+    let hmac_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &key_material);
+    let aggregator = ucqcf_ciem::entropy::EntropyAggregator::new(primary_rng, auxiliary_rng, hmac_key);
+    let ciem = CIEM::new(aggregator, clock_source);
 
     // 3. HUMAN/AI/APP VIEW: Define security intent via a profile.
     let profile = SecurityProfile {
@@ -54,8 +58,11 @@ fn main() {
 
     // 6. TAMPER EVENT
     println!("--- Simulating Tamper Event ---");
-    // This second CIEM uses different, lower-grade hardware for comparison.
-    let tampered_ciem = CIEM::new(Box::new(MockTRNG {}), Box::new(MockQuantumClock {}));
+    // This second CIEM uses a different entropy aggregator configuration.
+    let tampered_key_material = [99; 32];
+    let tampered_hmac_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &tampered_key_material);
+    let tampered_aggregator = ucqcf_ciem::entropy::EntropyAggregator::new(Box::new(MockTRNG {}), vec![], tampered_hmac_key);
+    let tampered_ciem = CIEM::new(tampered_aggregator, Box::new(MockQuantumClock {}));
     let second_capability = tampered_ciem.request_encrypt_capability(&profile).unwrap();
 
     // Inject a tamper event (e.g., from a physical sensor).
