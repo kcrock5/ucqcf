@@ -16,7 +16,7 @@ use ucqcf_core::CryptoError;
 use ucqcf_core::capability::CryptographicCapability;
 use ucqcf_core::profile::SecurityProfile;
 use ucqcf_mock_hw::clock::{ClockSource, MockClassicalOscillator};
-use ucqcf_mock_hw::rng::{MockTRNG, RngSource};
+use ucqcf_mock_hw::rng::MockTRNG;
 
 /// The CIEM struct, now using the `EntropyAggregator`.
 pub struct CIEM<'a> {
@@ -24,6 +24,7 @@ pub struct CIEM<'a> {
     entropy: EntropyAggregator<'a>,
     clock: RefCell<SecureClock<'a>>,
     tamper: RefCell<bool>,
+    key: RefCell<Option<[u8; 32]>>,
 }
 
 impl<'a> CIEM<'a> {
@@ -33,8 +34,13 @@ impl<'a> CIEM<'a> {
         clock_source: Box<dyn ClockSource + 'a>,
     ) -> Self {
         let mut fsm = CiemFsm::new();
-        // Drive the FSM to the state required by the example.
+        let key = RefCell::new(None);
+
+        // Generate the key when the FSM enters the `Created` state.
         fsm.on_generate().unwrap();
+        *key.borrow_mut() = Some(entropy_aggregator.get_entropy().unwrap());
+
+        // Bind the key.
         fsm.on_bind().unwrap();
 
         Self {
@@ -42,6 +48,7 @@ impl<'a> CIEM<'a> {
             entropy: entropy_aggregator,
             clock: RefCell::new(SecureClock::new(clock_source)),
             tamper: RefCell::new(false),
+            key,
         }
     }
 
@@ -63,12 +70,20 @@ impl<'a> CIEM<'a> {
         self.tamper.replace(true);
         // Use the new FSM's zeroize event.
         self.fsm.borrow_mut().on_zeroize();
+        // Securely wipe the key.
+        *self.key.borrow_mut() = None;
+    }
+
+    pub fn request_decrypt_capability<'c>(
+        &'c self,
+        _profile: &SecurityProfile,
+    ) -> Result<DecryptCapability<'c, 'a>, CryptoError> {
+        self.fsm.borrow_mut().on_authorize().map_err(|_| CryptoError::InvalidState)?;
+        Ok(DecryptCapability { ciem: self })
     }
 }
 
-use crate::entropy::EntropyError;
-
-use ring::hmac;
+use ring::{aead, hmac};
 
 /// Default implementation uses a default `EntropyAggregator`.
 impl<'a> Default for CIEM<'a> {
@@ -84,31 +99,59 @@ pub struct EncryptCapability<'c, 'a> {
     pub(crate) ciem: &'c CIEM<'a>,
 }
 
-/// The capability implementation now uses the `EntropyAggregator`.
+/// The capability implementation now uses AES-256-GCM.
 impl<'c, 'a> CryptographicCapability for EncryptCapability<'c, 'a> {
     fn execute(&self, plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
         if *self.ciem.tamper.borrow() {
             return Err(CryptoError::InvalidState);
         }
 
-        // Use the FSM's `on_use` event.
-        self.ciem.fsm.borrow_mut().on_use().map_err(|e| match e {
-            FsmError::InvalidTransition => CryptoError::FsmInvalidTransition,
-            FsmError::UsageExceeded => CryptoError::FsmUsageExceeded,
-        })?;
+        self.ciem.fsm.borrow_mut().on_use().map_err(|_| CryptoError::InvalidState)?;
+
+        let key_borrow = self.ciem.key.borrow();
+        let key = key_borrow.as_ref().ok_or(CryptoError::InvalidState)?;
 
         let _epoch = self.ciem.clock.borrow_mut().tick();
-        // Get conditioned entropy from the aggregator.
-        let conditioned_entropy = self.ciem.entropy.get_entropy().map_err(|e| match e {
-            EntropyError::RepetitionCheckFailed => CryptoError::EntropyHealthCheckFailed,
-            EntropyError::ProportionCheckFailed => CryptoError::EntropyHealthCheckFailed,
-            EntropyError::NoSources => CryptoError::InvalidState,
-        })?;
+        let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, key).unwrap();
+        let sealing_key = aead::LessSafeKey::new(unbound_key);
 
-        Ok(plaintext
-            .iter()
-            .zip(conditioned_entropy.iter().cycle())
-            .map(|(p, e)| p ^ e)
-            .collect())
+        let nonce_bytes = self.ciem.entropy.get_entropy().map_err(|_| CryptoError::EntropyHealthCheckFailed)?;
+        let nonce = aead::Nonce::try_assume_unique_for_key(&nonce_bytes[..12]).unwrap();
+        let nonce_vec = nonce.as_ref().to_vec();
+
+        let mut ciphertext = plaintext.to_vec();
+        sealing_key.seal_in_place_append_tag(nonce, aead::Aad::empty(), &mut ciphertext).unwrap();
+
+        let mut result = nonce_vec;
+        result.extend_from_slice(&ciphertext);
+
+        Ok(result)
+    }
+}
+
+pub struct DecryptCapability<'c, 'a> {
+    pub(crate) ciem: &'c CIEM<'a>,
+}
+
+impl<'c, 'a> CryptographicCapability for DecryptCapability<'c, 'a> {
+    fn execute(&self, ciphertext_with_nonce: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        if *self.ciem.tamper.borrow() {
+            return Err(CryptoError::InvalidState);
+        }
+
+        self.ciem.fsm.borrow_mut().on_use().map_err(|_| CryptoError::InvalidState)?;
+
+        let key_borrow = self.ciem.key.borrow();
+        let key = key_borrow.as_ref().ok_or(CryptoError::InvalidState)?;
+
+        let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, key).unwrap();
+        let opening_key = aead::LessSafeKey::new(unbound_key);
+
+        let nonce = aead::Nonce::try_assume_unique_for_key(&ciphertext_with_nonce[..12]).unwrap();
+        let mut ciphertext = ciphertext_with_nonce[12..].to_vec();
+
+        let plaintext = opening_key.open_in_place(nonce, aead::Aad::empty(), &mut ciphertext).map_err(|_| CryptoError::InvalidState)?;
+
+        Ok(plaintext.to_vec())
     }
 }

@@ -14,7 +14,7 @@ fn main() {
     // The system is provisioned with specific, attested hardware.
     let primary_rng = Box::new(MockTRNG);
     let auxiliary_rng: Vec<Box<dyn RngSource>> = vec![Box::new(MockQRNG)];
-    let clock_source = Box::new(MockAtomicClock);
+    let clock_source: Box<dyn ClockSource> = Box::new(MockAtomicClock);
     println!(
         "SYSTEM: Provisioning CIEM with primary RNG: '{}', auxiliary RNGs: ['{}'], and clock: '{}'.\n",
         primary_rng.name(),
@@ -26,6 +26,7 @@ fn main() {
     let key_material = [42; 32]; // Example key, NEVER hardcode in production.
     let hmac_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &key_material);
     let aggregator = ucqcf_ciem::entropy::EntropyAggregator::new(primary_rng, auxiliary_rng, hmac_key);
+    let clock_source = Box::new(MockAtomicClock);
     let ciem = CIEM::new(aggregator, clock_source);
 
     // 3. HUMAN/AI/APP VIEW: Define security intent via a profile.
@@ -49,20 +50,28 @@ fn main() {
         std::str::from_utf8(plaintext).unwrap()
     );
 
-    let ciphertext = encrypt_capability.execute(plaintext).unwrap();
+    let ciphertext_with_nonce = encrypt_capability.execute(plaintext).unwrap();
 
     println!("CAPABILITY: Execution complete.");
-    println!("RESULT: Ciphertext -> {:?}\n", ciphertext);
+    println!("RESULT: Ciphertext with nonce -> {:?}\n", ciphertext_with_nonce);
+
+    // 6. DECRYPTION: Request a decryption capability and verify the result.
+    let decrypt_capability = ciem.request_decrypt_capability(&profile).unwrap();
+    let decrypted_plaintext = decrypt_capability.execute(&ciphertext_with_nonce).unwrap();
+    println!("DECRYPTION: Decrypted plaintext: \"{}\"", std::str::from_utf8(&decrypted_plaintext).unwrap());
+    assert_eq!(plaintext, decrypted_plaintext.as_slice());
+    println!("DECRYPTION: Verification successful!\n");
 
     // --- DEMONSTRATE SECURITY GUARANTEES ---
 
-    // 6. TAMPER EVENT
+    // 7. TAMPER EVENT
     println!("--- Simulating Tamper Event ---");
     // This second CIEM uses a different entropy aggregator configuration.
     let tampered_key_material = [99; 32];
     let tampered_hmac_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &tampered_key_material);
     let tampered_aggregator = ucqcf_ciem::entropy::EntropyAggregator::new(Box::new(MockTRNG {}), vec![], tampered_hmac_key);
-    let tampered_ciem = CIEM::new(tampered_aggregator, Box::new(MockQuantumClock {}));
+    let tampered_clock: Box<dyn ClockSource> = Box::new(MockQuantumClock {});
+    let tampered_ciem = CIEM::new(tampered_aggregator, tampered_clock);
     let second_capability = tampered_ciem.request_encrypt_capability(&profile).unwrap();
 
     // Inject a tamper event (e.g., from a physical sensor).
