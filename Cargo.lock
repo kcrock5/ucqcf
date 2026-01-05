@@ -234,6 +234,7 @@ name = "ucqcf_orchestrator"
 version = "0.1.0"
 dependencies = [
  "ucqcf_core",
+ "uuid",
 ]
 
 [[package]]
