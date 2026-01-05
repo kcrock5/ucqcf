@@ -3,7 +3,7 @@ members = [
     "ucqcf_core",
     "ucqcf_ciem",
     "ucqcf_mock_hw",
-    "ucqcf_orchestrator",
+    "ucqcf_engine",
     "examples/defense",
 ]
 resolver = "2"

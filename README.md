@@ -9,7 +9,7 @@ The UCQCF is built on a layered architecture that separates concerns and provide
 - **`ucqcf_core`**: Defines the core traits and data structures used throughout the framework, such as `CryptographicCapability` and `SecurityProfile`.
 - **`ucqcf_mock_hw`**: Provides mock hardware implementations for random number generators (RNGs) and secure clocks. This allows for testing and development without requiring specialized hardware.
 - **`ucqcf_ciem`**: The **Cryptographic Information and Entropy Module (CIEM)** is the trust anchor of the system. It manages the cryptographic state, generates and stores keys, and provides a secure API for requesting cryptographic capabilities.
-- **`ucqcf_orchestrator`**: (Future work) This crate will be responsible for managing and orchestrating multiple CIEMs in a larger system.
+- **`ucqcf_engine`**: The **Universal Cryptographic Engine (UCE)** is the stable, non-negotiable heart of the framework. It orchestrates cryptographic modules, enforces security policy decisions, and maintains trust boundaries.
 - **`examples/defense`**: An example application that demonstrates how to use the framework to provision a `CIEM` and perform a secure encryption/decryption round-trip.
 
 ## Getting Started

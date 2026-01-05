@@ -2,6 +2,8 @@
 
 // Declare the sub-modules
 pub mod capability;
+pub mod handles;
+pub mod interfaces;
 pub mod profile;
 
 /// Common error type for the framework, used across different crates.

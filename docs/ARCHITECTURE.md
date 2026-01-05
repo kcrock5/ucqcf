@@ -33,9 +33,9 @@ The **Cryptographic Information and Entropy Module (CIEM)** is the heart of the 
 - **Key Management:** The CIEM generates and securely stores cryptographic keys, and it ensures that they are wiped from memory during a tamper event.
 - **Capability Issuance:** The CIEM exposes a secure API for requesting cryptographic capabilities.
 
-### `ucqcf_orchestrator`
+### `ucqcf_engine`
 
-This crate is a placeholder for future work. It is envisioned that the orchestrator will be responsible for managing and orchestrating multiple CIEMs in a larger, more complex system.
+This crate is the home of the **Universal Cryptographic Engine (UCE)**. It is the stable, non-negotiable heart of the framework, responsible for orchestrating cryptographic modules, enforcing security policy decisions, and maintaining trust boundaries.
 
 ## Security Model
 
