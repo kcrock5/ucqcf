@@ -2,6 +2,8 @@
 
 // Declare the sub-modules
 pub mod capability;
+pub mod handles;
+pub mod interfaces;
 pub mod profile;
 
 /// Common error type for the framework, used across different crates.
@@ -17,4 +19,6 @@ pub enum CryptoError {
     FsmUsageExceeded,
     /// An entropy source failed a health check.
     EntropyHealthCheckFailed,
+    /// Decryption failed, likely due to an incorrect key or tampered ciphertext.
+    DecryptionFailed,
 }

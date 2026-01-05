@@ -27,7 +27,7 @@ fn main() {
     let hmac_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &key_material);
     let aggregator = ucqcf_ciem::entropy::EntropyAggregator::new(primary_rng, auxiliary_rng, hmac_key);
     let clock_source = Box::new(MockAtomicClock);
-    let ciem = CIEM::new(aggregator, clock_source);
+    let ciem = CIEM::new(aggregator, clock_source).unwrap();
 
     // 3. HUMAN/AI/APP VIEW: Define security intent via a profile.
     let profile = SecurityProfile {
@@ -71,7 +71,7 @@ fn main() {
     let tampered_hmac_key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, &tampered_key_material);
     let tampered_aggregator = ucqcf_ciem::entropy::EntropyAggregator::new(Box::new(MockTRNG {}), vec![], tampered_hmac_key);
     let tampered_clock: Box<dyn ClockSource> = Box::new(MockQuantumClock {});
-    let tampered_ciem = CIEM::new(tampered_aggregator, tampered_clock);
+    let tampered_ciem = CIEM::new(tampered_aggregator, tampered_clock).unwrap();
     let second_capability = tampered_ciem.request_encrypt_capability(&profile).unwrap();
 
     // Inject a tamper event (e.g., from a physical sensor).
